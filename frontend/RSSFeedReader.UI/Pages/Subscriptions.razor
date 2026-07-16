@@ -1,0 +1,82 @@
+@page "/"
+@inject HttpClient Http
+
+<PageTitle>Subscriptions</PageTitle>
+
+<h1>RSS Feed Subscriptions</h1>
+
+<div class="mb-3">
+    <label class="form-label" for="feedUrl">Feed URL</label>
+    <input id="feedUrl" class="form-control" @bind="feedUrl" placeholder="https://example.com/feed" />
+</div>
+
+<button class="btn btn-primary" @onclick="AddSubscription">Add subscription</button>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <p class="mt-3">@statusMessage</p>
+}
+
+@if (subscriptions is null)
+{
+    <p class="mt-3">Loading subscriptions...</p>
+}
+else if (subscriptions.Count == 0)
+{
+    <p class="mt-3">No subscriptions yet.</p>
+}
+else
+{
+    <ul class="mt-3">
+        @foreach (var subscription in subscriptions)
+        {
+            <li>@subscription.Url</li>
+        }
+    </ul>
+}
+
+@code {
+    private string feedUrl = string.Empty;
+    private string statusMessage = string.Empty;
+    private List<SubscriptionItem>? subscriptions;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSubscriptions();
+    }
+
+    private async Task AddSubscription()
+    {
+        if (string.IsNullOrWhiteSpace(feedUrl))
+        {
+            statusMessage = "Please enter a feed URL.";
+            return;
+        }
+
+        var response = await Http.PostAsJsonAsync("http://localhost:5006/api/subscriptions", new { url = feedUrl });
+        if (response.IsSuccessStatusCode)
+        {
+            feedUrl = string.Empty;
+            statusMessage = "Subscription added.";
+            await LoadSubscriptions();
+        }
+        else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            statusMessage = "That subscription already exists.";
+        }
+        else
+        {
+            statusMessage = "Unable to add subscription.";
+        }
+    }
+
+    private async Task LoadSubscriptions()
+    {
+        subscriptions = await Http.GetFromJsonAsync<List<SubscriptionItem>>("http://localhost:5006/api/subscriptions");
+    }
+
+    private sealed class SubscriptionItem
+    {
+        public string Url { get; set; } = string.Empty;
+    }
+}
